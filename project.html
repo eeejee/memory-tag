@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>memory tag</title>
+
+<style>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  overflow: hidden;
+  background: #ffffff;
+  font-family: 'KoPubWorld', serif;
+}
+
+#viewport {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  position: relative;
+  perspective: 2000px;
+  cursor: grab;
+}
+
+#canvas {
+  position: absolute;
+  transform-style: preserve-3d;
+  transform-origin: 0 0;
+  transition: transform 0.08s linear;
+}
+
+.card {
+  position: absolute;
+  transition: transform 0.08s linear;
+  cursor: grab;
+  user-select: none;
+  white-space: pre-line;
+}
+
+.card.dragging {
+  cursor: grabbing;
+  transition: none;
+  animation-play-state: paused;
+}
+
+.card.selected {
+  z-index: 999999 !important;
+}
+
+.card img {
+  display: block;
+  margin-bottom: 6px;
+  width: 100%;
+  height: auto;
+  filter: grayscale(100%);
+  pointer-events: none;
+}
+
+.card p {
+  font-size: 12px;
+  color: #222;
+  line-height: 1.6;
+  letter-spacing: -0.1px;
+  margin-left: 6px;
+  white-space: pre-line;
+  pointer-events: none;
+}
+
+.card:hover {
+  z-index: 999;
+}
+
+.zoom-controls {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 9999999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.zoom-controls button {
+  width: 52px;
+  height: 52px;
+  border: none;
+  border-radius: 100px;
+  background: rgba(255,255,255,0.94);
+  font-size: 22px;
+  cursor: pointer;
+}
+
+.zoom-controls button:hover {
+  background: rgba(245,245,245,0.98);
+}
+
+@keyframes floatInner {
+  0% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+.float-inner {
+  will-change: transform;
+}
+
+.card.dragging .float-inner {
+  animation-play-state: paused;
+}
+
+</style>
+</head>
+
+<body>
+
+<div id="viewport">
+  <div id="canvas"></div>
+</div>
+
+<div class="zoom-controls">
+  <button id="zoomIn">＋</button>
+  <button id="zoomOut">－</button>
+</div>
+
+<script>
+const canvas = document.getElementById("canvas");
+const viewport = document.getElementById("viewport");
+const zoomInBtn = document.getElementById("zoomIn");
+const zoomOutBtn = document.getElementById("zoomOut");
+
+const images = [
+  "img/1.png","img/2.png","img/3.png","img/4.png",
+  "img/5.png","img/6.png","img/7.png","img/8.png",
+  "img/9.png","img/10.png","img/11.png","img/12.png",
+  "img/13.png","img/14.png","img/15.png","img/16.png",
+  "img/17.png","img/18.png","img/19.png","img/20.png",
+  "img/21.png","img/22.png","img/23.png","img/24.png",
+  "img/25.png","img/26.png","img/27.png","img/28.png",
+  "img/29.png","img/30.png","img/31.png","img/32.png",
+  "img/33.png","img/34.png","img/35.png","img/36.png",
+  "img/37.png","img/38.png","img/39.png","img/40.png",
+  "img/41.png","img/42.png","img/43.png","img/44.png",
+  "img/45.png","img/46.png","img/47.png","img/48.png",
+  "img/49.png","img/50.png","img/51.png","img/52.png",
+  "img/53.png","img/54.png","img/55.png","img/56.png",
+  "img/57.png","img/58.png","img/59.png","img/60.png",
+  "img/61.png","img/62.png","img/63.png","img/64.png",
+  "img/65.png","img/66.png","img/67.png","img/68.png",
+  "img/69.png","img/70.png","img/71.png","img/72.png",
+  "img/73.png","img/74.png","img/75.png","img/76.png",
+  "img/77.png","img/78.png","img/79.png","img/80.png",
+  "img/81.png","img/82.png","img/83.png","img/84.png",
+  "img/85.png","img/86.png","img/87.png","img/88.png",
+  "img/89.png","img/90.png","img/91.png","img/92.png",
+  "img/93.png","img/94.png","img/95.png","img/96.png",
+  "img/97.png","img/98.png","img/99.png","img/100.png",
+  "img/101.png","img/102.png","img/103.png","img/104.png",
+  "img/105.png","img/106.png","img/107.png","img/108.png",
+  "img/109.png","img/110.png",
+  "img/111.png","img/112.png","img/113.png","img/114.png",
+  "img/115.png","img/116.png","img/117.png","img/118.png",
+  "img/119.png","img/120.png","img/121.png","img/122.png",
+  "img/123.png","img/124.png","img/125.png","img/126.png",
+  "img/127.png","img/128.png","img/129.png","img/130.png",
+  "img/131.png","img/132.png","img/133.png","img/134.png",
+  "img/135.png","img/136.png","img/137.png","img/138.png",
+  "img/139.png","img/140.png","img/141.png","img/142.png",
+  "img/143.png","img/144.png","img/145.png","img/146.png",
+  "img/147.png","img/148.png","img/149.png","img/150.png",
+  "img/151.png","img/152.png","img/153.png","img/154.png",
+  "img/155.png","img/156.png","img/157.png","img/158.png",
+  "img/159.png","img/160.png","img/161.png","img/162.png",
+  "img/163.png","img/164.png","img/165.png","img/166.png",
+  "img/167.png"
+];
+
+const texts = [
+  "개강을 알리는\n봄의 자작마루",
+  "무언가를 찍기 위해\n여행을 다짐한 건\n처음이었다.",
+  "소박하지만 아름다운\n시즈오카의 카페",
+  "혼자 해외에 간다는 게\n실감나지 않았다.",
+  "드라마를 보고 무작정\n혼자 떠난 후지산",
+  "네모단 문의\n네모난 창",
+  "비닐! 엄마 생각에\n황급히 찍었더니,,,",
+  "하얀 벽의 하얀 장식",
+  "출발 5분전\n티켓 끊고 무작정 달리기",
+  "패브릭과 텍스타일에\n빠지게 된 계기",
+  "주인이 비워진 자리",
+  "구글맵이 이름만 같은\n다른 지역으로\n두 번이나 보냈었다.",
+  "출력, 출력, 출력",
+  "갈 때마다\n낮선 기분이 드는 거리",
+  "가장 작은 선물",
+  "휴학 직후 떠난 탬플 스테이\n먹을 것은 고구마 뿐,,,",
+  "맛있게도 잔다",
+  "일할 때 밥을 먹으면\n체할 것 같아\n빵과 음료가 최고",
+  "예고도 없이\n나를 데리러 온 닌자 버스",
+  "무맛의 말차오레와\n짭짤한 치즈케이크",
+  "새로 산 바지와\n10년도 넘은 엄마의 샌들",
+  "가장 맛있는 디저트는\n파운드 케이크",
+  "봄과 여름 경계의\n따듯한 노을",
+  "만화를 읽자, 중쇄를 찍자!",
+  "푸릇 눅눅한 청계천",
+  "쌓인 것, 버려진 것,\n패턴, 패턴",
+  "일본 공향의 캄보디아 기념품",
+  "아-- 아- 아--- 아아 아--",
+  "날이 추워질 땐\n찐빵 말고 왕만두",
+  "호지차 집착의 시작,,,",
+  "포스터 축제!",
+  "혼자 간 여행지의\n소박한 숙소",
+  "워크인으로 양조위를 보다.",
+  "하루에 3편\n아니 5편도 가능",
+  "여자 화이팅 여자 사랑해",
+  "서비스를 받고\n뚝딱이지 않는 법",
+  "흑맥주로 만든 케이크는\n엄청나게 맛있구나",
+  "레전드 헤메코\n<메종 드 히미코 中 >",
+  "여름이 되면\n과천 국현미에 가야 해",
+  "아무도 앉지 않는 의자",
+  "어린 나의 이상형",
+  "모기만 7방 물리고,\n대만 사람으로 오해 받았다",
+  "필름의 매력에\n빠지게 한 사진",
+  "조명보단 자연광",
+  "습하고 축축한 숲 향기.",
+  "노다메 칸타빌레,\n인생을 칸타빌레",
+  "희망을 버려,\n그리고 힘 내",
+  "ba ba ba\ndu du du",
+  "THis is lava!",
+  "어디서든 강아를 발견",
+  "중도의 발견.\n아름다운 풍경",
+  "롯데월드몰 마똉킴 앞\n먹다 만 옥수수",
+  "매일매일 자기 전\n세 번 씩",
+  "여름을 사랑하는 이유!",
+  "홍대에서 유일하게\n좋아하는 곳",
+  "작년 여름\n가장 기억에 남는 전시",
+  "청계천에 앉아서\n상하기 직전의 김밥을 먹어",
+  "미싱을 배우자!",
+  "혼자 가기 좋은 카페\n호감 카페",
+  "이런 창이 나있는\n집에 살고싶어",
+  "대체 언제쯤\n거대한 내가 사라질까",
+  "JLPT 인생의 벼락치기",
+  "베이글 위에\n모든 걸 올려놨지",
+  "신발장이 좋은 건 왜일까",
+  "한 숨도 못자고\n영화만 세 편",
+  "호주에서 만난\n거대한 게",
+  "엉덩이를 맞대고\n온기를 나누자",
+  "영화 속에 들어와 있는 기분",
+  "미트파이에 케첩을 뿌리는\n호주 사람들 무섭다",
+  "그림자와 빛이 파편처럼",
+  "나무가 내다보이는 방",
+  "빠져본 적 없지만\n돌다리는 왠지 무섭다",
+  "횡단 보도만 5개 째",
+  "나무 그림자를 덮고\n낮잠을 자자",
+  "쿠키인지 뭔지,,,",
+  "Is it boring you to tears?",
+  "걸어도 걸어도",
+  "멋진 공간에 가는 것",
+  "새해 꽃 많이 받으세요!",
+  "가을엔 서촌의\n이곳저곳에 가기",
+  "어행과 나날 GV의 나날",
+  "실크스크린이 좋아",
+  "잃어버린 물건들은\n어디로 갔을까",
+  "그러니, 우리는\n진실의 반만 보는 거죠",
+  "왜 여기에 문이,,,",
+  "감지 조심 합시다.",
+  "놀기신청 하러 온 거야?",
+  "일요일에 안경 쓰면\n영국인 같아?",
+  "<-------",
+  "닌텐도 속 우리집",
+  "남현동의\n남서울시립미술관",
+  "전시 도록을 모으고 싶다",
+  "이 꽃은 이름이 뭘까?",
+  "벨을 누르고,\n계단을 올라 4층에 가야\n도달하는 가게",
+  "할머니 되면 입고싶은 옷",
+  "해외의 거리는 왜\n어디든 아름답게 드껴질까",
+  "꽃을 받고 보는 영화",
+  "집에 가자",
+  "cinema, cinama",
+  "언니의 애착 티셔츠",
+  "할아버지가 계신 곳",
+  "타일이 좋아!",
+  "식물과 함께 살기",
+  "아름다운 도시의 배경음악",
+  "다들 어디로 가고 있는 걸까",
+  "Hurricane of jacaranda",
+  "친구의 자취방에서 잔 다음날 점심",
+  "메뉴는 볕뉘",
+  "햄버거가 수상하게 맛있는 카페",
+  "무작정 걷다보면\n발견하는 풍경",
+  "발밑으로 찰랑거리는 것",
+  "제일 좋아하는 베이커리의\n담백 뻑뻑 치즈케이크",
+  "돌의 나이테",
+  "덩그러니",
+  "소망하는 것\n모두 이루어지길",
+  "바나나브레드를\n매일 먹을 수 있다면",
+  "무언가 말을 시작할 것 같다",
+  "작은 것을 모으기",
+  "여기가 시드니야 동묘야",
+  "발꿈치가 다 까지는\n코알라 신발",
+  "걸어서 다리 건너기\n생각보다 무섭다",
+  "바닷가는 누웠을 때\n더 따듯하다",
+  "드르륵칵",
+  "아사이볼은 먹을 때마다\n생각한 맛이 아닌 것 같아",
+  "나를 하루에 7끼 먹게 하는 친구",
+  "특별한 날엔 어쩐지\n재즈 공연을 봐야할 것 같다",
+  "꼬순내 지리는 룸메",
+  "영원히 잘리지 않을 것 같은 베이컨",
+  "프라이버시는 없지만, 아름다운 샤워부스",
+  "매년 성장하는\n언니의 눈사람",
+  "졸업 축하해!",
+  "절대 플로터로 뽑은 검은색 포스터를 만지지 마",
+  "귀갓길 난이도 5배 이벤트",
+  "행복의 일부가 되는 것",
+  "영화 <원더풀 라이프>의 포스터, 고민이 생길 때 가장 먼저 떠오르는 영화",
+  "사는 동안 만두 많이 먹자",
+  "Do you remember\nThe 21st night of September?",
+  "홍콩의 에그타르트는 그럭저럭",
+  "레몬시럽에 담군 케이크,\n너무 맛있어!",
+  "좋아하는 뮤직비디오, IYKYK",
+  "집갑을 잃어버린 다음 날의 흐린 홍콩",
+  "제일 좋아하는 점박이 말",
+  "각자의 창문과 빨래들",
+  "보기 좋은 것이 입에도 좋다",
+  "중국집의 군만두라 쓰고 튀김만두",
+  "폭설이 내린 전주",
+  "조형관의 엘레베이터",
+  "브로콜리는 썩으면 의외로\n방구 냄새가 난다",
+  "에피린을 구하러 가야 하는데,,,",
+  "쓰레기 마감 너무 싫다",
+  "새벽에 일어나 차 한 잔",
+  "단단이 힘이 되어 줘",
+  "유튜브의 10분 언저리 독립 영화가 보물 같다",
+  "휗 휗 휗",
+  "일하면서 만화책 100권 읽기",
+  "평일 공강의 맛 : 영화관 전세",
+  "영화를 봅시다",
+  "기억에서 지워지지 않는 타이포그래피",
+  "주먹밥을 먹으면 여행을 온 기분이 든다",
+  "곰 조심!",
+  "아무도 없는 작은 역,\n무려 개찰구도 없다",
+  "긴 바지를 입고 뛰다가 대차게 넘어지기",
+  "인생이 힘들 땐 수도꼭지를 틀고 거짓과 허세에 찌든 일상을 깨끗이 씻어내자!",
+  "버스에 타고\n몇 시간이고 가고 싶다",
+  "분명히 다 봤는데 기억이 나지 않아",
+  "괜찮아요. 의사가 전부 내출혈이랬거든요. 피는 원래 안에 있는 거잖아요.",
+  "왠지 불안해지는 지점에서 2분 정도 더 참고 가면 거기서 오른쪽",
+];
+
+let isIndexOnly = false;
+let selectedCard = null;
+let frontZ = 10000;
+
+let dragCard = null;
+let dragStartMouseX = 0;
+let dragStartMouseY = 0;
+let dragStartLeft = 0;
+let dragStartTop = 0;
+
+let isPanning = false;
+let panStartX = 0;
+let panStartY = 0;
+let panOriginX = 0;
+let panOriginY = 0;
+
+const allCardImages = [];
+const allCardTexts = [];
+const zoomStep = 0.25;
+
+
+function createCards() {
+ 
+  const colors = [
+    "#57ffa7", "#dddddd", "#ff57df", "#ccdbff", "#e1a9ff"
+  ];
+  
+  for (let i = 0; i < 300; i++) {
+    const index = i % images.length;
+
+    const card = document.createElement("div");
+    card.className = "card";
+
+    const depth = Math.random() * 800 - 400;
+    const scaleValue = 0.6 + Math.random() * 0.8;
+    const baseTransform = `translateZ(${depth}px) scale(${scaleValue})`;
+    card.dataset.baseTransform = baseTransform;
+    card.style.transform = baseTransform;
+
+    const imgWidth = 160 + Math.random() * 200;
+    card.style.width = imgWidth + "px";
+
+    const content = document.createElement("div");
+    content.style.position = "relative";
+
+    content.className = "float-inner";
+
+    const img = document.createElement("img");
+    img.src = images[index];
+
+    img.onerror = () => {
+      console.log("이미지 없음:", images[index]);
+      card.remove();
+    };
+
+    const text = document.createElement("p");
+    text.innerText = texts[index] || "";
+
+    allCardImages.push(img);
+    allCardTexts.push(text);
+
+    const indexFrame = document.createElement("div");
+
+    const color = colors[Math.floor(Math.random() * colors.length)];
+    const thickness = Math.floor(Math.random() * 18) + 14;
+
+    content.style.paddingLeft = (thickness - 2) + "px";
+
+    indexFrame.style.position = "absolute";
+    indexFrame.style.left = "0";
+    indexFrame.style.top = "0";
+    indexFrame.style.width = thickness + "px";
+    indexFrame.style.height = "100%";
+    indexFrame.style.background = color;
+    indexFrame.style.transform = "translateX(-2px)";
+    indexFrame.style.zIndex = 2;
+
+    indexFrame.addEventListener("pointerdown", (e) => {
+      e.stopPropagation();
+
+      isIndexOnly = !isIndexOnly;
+
+      allCardImages.forEach(el => {
+        el.style.opacity = isIndexOnly ? "0" : "1";
+      });
+
+      allCardTexts.forEach(el => {
+        el.style.opacity = isIndexOnly ? "0" : "1";
+      });
+    });
+
+    card.addEventListener("pointerdown", (e) => {
+      if (e.target === indexFrame) return;
+      e.stopPropagation();
+
+      dragCard = card;
+      dragStartMouseX = e.clientX;
+      dragStartMouseY = e.clientY;
+      dragStartLeft = parseFloat(card.style.left) || 0;
+      dragStartTop = parseFloat(card.style.top) || 0;
+
+      card.classList.add("dragging");
+      bringToFront(card);
+    });
+
+    content.appendChild(indexFrame);
+    content.appendChild(img);
+    content.appendChild(text);
+    card.appendChild(content);
+
+    const cols = 20;
+    const spacingX = 400;
+    const spacingY = 300;
+
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+
+    const jitterX = (Math.random() - 0.5) * 150;
+    const jitterY = (Math.random() - 0.5) * 150;
+
+    card.style.left = col * spacingX + jitterX + "px";
+    card.style.top = row * spacingY + jitterY + "px";
+
+    canvas.appendChild(card);
+  }
+}
+
+function bringToFront(card) {
+  if (selectedCard && selectedCard !== card) {
+    selectedCard.classList.remove("selected");
+    selectedCard.style.transform = selectedCard.dataset.baseTransform;
+  }
+
+  selectedCard = card;
+  selectedCard.classList.add("selected");
+  selectedCard.style.zIndex = ++frontZ;
+  selectedCard.style.transform =
+    `${selectedCard.dataset.baseTransform} translateZ(240px) scale(1.03)`;
+
+  canvas.appendChild(selectedCard);
+}
+
+createCards();
+
+requestAnimationFrame(() => {
+  fitViewToCards();
+});
+
+window.addEventListener("load", () => {
+  fitViewToCards();
+});
+
+let scale = 1;
+let pos = { x: 0, y: 0 };
+
+viewport.addEventListener("pointerdown", (e) => {
+  if (e.target.closest(".card")) return;
+
+  isPanning = true;
+  panStartX = e.clientX;
+  panStartY = e.clientY;
+  panOriginX = pos.x;
+  panOriginY = pos.y;
+
+  viewport.style.cursor = "grabbing";
+});
+
+viewport.addEventListener("wheel", (e) => {
+  e.preventDefault();
+
+  const zoom = e.deltaY * -0.002;
+  scale += zoom;
+  scale = Math.min(Math.max(0.1, scale), 4);
+
+  updateTransform();
+});
+
+window.addEventListener("pointermove", (e) => {
+  if (dragCard) {
+    const dx = (e.clientX - dragStartMouseX) / scale;
+    const dy = (e.clientY - dragStartMouseY) / scale;
+
+    dragCard.style.left = `${dragStartLeft + dx}px`;
+    dragCard.style.top = `${dragStartTop + dy}px`;
+    return;
+  }
+
+  if (isPanning) {
+    const dx = e.clientX - panStartX;
+    const dy = e.clientY - panStartY;
+
+    pos.x = panOriginX + dx;
+    pos.y = panOriginY + dy;
+    updateTransform();
+  }
+});
+
+window.addEventListener("pointerup", () => {
+  if (dragCard) {
+    dragCard.classList.remove("dragging");
+  }
+
+  dragCard = null;
+  isPanning = false;
+  viewport.style.cursor = "grab";
+});
+
+function fitViewToCards() {
+  const cards = Array.from(document.querySelectorAll(".card"));
+  if (!cards.length) return;
+
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+
+  cards.forEach(card => {
+    const left = parseFloat(card.style.left) || 0;
+    const top = parseFloat(card.style.top) || 0;
+    const width = card.offsetWidth || 0;
+    const height = card.offsetHeight || 0;
+
+    minX = Math.min(minX, left);
+    minY = Math.min(minY, top);
+    maxX = Math.max(maxX, left + width);
+    maxY = Math.max(maxY, top + height);
+  });
+
+  const contentWidth = maxX - minX;
+  const contentHeight = maxY - minY;
+
+  const padding = 260; // 화면 안쪽 여백
+  const scaleX = (window.innerWidth - padding * 2) / contentWidth;
+  const scaleY = (window.innerHeight - padding * 2) / contentHeight;
+
+  // 가장 멀리서 전체가 보이도록
+  scale = Math.min(scaleX, scaleY);
+
+  // 너무 과하게 작거나 크게 되는 것 방지
+  scale = Math.min(Math.max(scale, 0.08), 1);
+
+  // 중앙 정렬
+  pos.x = (window.innerWidth - contentWidth * scale) / 2 - minX * scale;
+  pos.y = (window.innerHeight - contentHeight * scale) / 2 - minY * scale;
+
+  updateTransform();
+}
+
+function updateTransform() {
+  canvas.style.transform =
+    `translate(${pos.x}px, ${pos.y}px) scale(${scale})`;
+}
+
+function zoomAtCenter(delta) {
+  const oldScale = scale;
+  const newScale = Math.min(Math.max(oldScale + delta, 0.1), 4);
+
+  if (newScale === oldScale) return;
+
+  // 🔥 화면 중앙 기준
+  const centerX = window.innerWidth / 2;
+  const centerY = window.innerHeight / 2;
+
+  const worldX = (centerX - pos.x) / oldScale;
+  const worldY = (centerY - pos.y) / oldScale;
+
+  scale = newScale;
+
+  pos.x = centerX - worldX * newScale;
+  pos.y = centerY - worldY * newScale;
+
+  updateTransform();
+}
+
+zoomInBtn.addEventListener("click", () => {
+  zoomAtCenter(zoomStep);
+});
+
+zoomOutBtn.addEventListener("click", () => {
+  zoomAtCenter(-zoomStep);
+});
+
+zoomOutBtn.addEventListener("click", (e) => {
+  const x = e.clientX || (window.innerWidth - 50);
+  const y = e.clientY || (window.innerHeight - 140);
+  zoomAtPoint(-zoomStep, x, y);
+});
+
+updateTransform();
+</script>
+
+</body>
+</html>
